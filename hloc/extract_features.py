@@ -114,6 +114,21 @@ confs = {
             "resize_max": 1600,
         },
     },
+    "aliked": {
+        "output": "feats-alikedn16",
+        "model": {
+            "name": "aliked",
+            "model_name": "aliked-n16",  # 'aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'
+            "max_num_keypoints": 4096,
+            "detection_threshold": 0.0,
+            "force_num_keypoints": False,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+            # "resize_force": True,
+        },
+    },
     # Global descriptors
     "dir": {
         "output": "global-feats-dir",
@@ -123,6 +138,11 @@ confs = {
     "netvlad": {
         "output": "global-feats-netvlad",
         "model": {"name": "netvlad"},
+        "preprocessing": {"resize_max": 1024},
+    },
+    "dinov2_salad": {
+        "output": "global-feats-gdinov2salad",
+        "model": {"name": "dinov2_salad"},
         "preprocessing": {"resize_max": 1024},
     },
     "openibl": {
