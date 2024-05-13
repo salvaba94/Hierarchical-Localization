@@ -141,7 +141,7 @@ confs = {
         "preprocessing": {"resize_max": 1024},
     },
     "dinov2_salad": {
-        "output": "global-feats-gdinov2salad",
+        "output": "global-feats-dinov2salad",
         "model": {"name": "dinov2_salad"},
         "preprocessing": {"resize_max": 1024},
     },
@@ -273,7 +273,8 @@ def main(
     )
     for idx, data in enumerate(tqdm(loader)):
         name = dataset.names[idx]
-        pred = model({"image": data["image"].to(device, non_blocking=True)})
+        with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+            pred = model({"image": data["image"].to(device, non_blocking=True)})
         pred = {k: v[0].cpu().numpy() for k, v in pred.items()}
 
         pred["image_size"] = original_size = data["original_size"][0].numpy()

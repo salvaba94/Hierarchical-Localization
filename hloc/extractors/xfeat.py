@@ -9,7 +9,7 @@ import torch
 from ..utils.base_model import BaseModel
 
 
-class XFeatExtractor(BaseModel):
+class XFeat(BaseModel):
     default_conf = {
         'top_k' : 4096,
         'semi_dense' : True
@@ -17,8 +17,9 @@ class XFeatExtractor(BaseModel):
     required_inputs = ['image']
 
     def _init(self, conf):
+        print(conf)
         self.semi_dense = conf.pop('semi_dense')
-        self.net = torch.hub.load(
+        self.model = torch.hub.load(
             'verlab/accelerated_features', 
             'XFeat',
             pretrained = True, 
@@ -27,8 +28,9 @@ class XFeatExtractor(BaseModel):
         
 
     def _forward(self, data):
+        self.model.parse_input(data["image"])
         if not self.semi_dense:
-            preds = self.net.detectAndCompute(data['image'])
+            preds = self.model.detectAndCompute(data['image'])
         else:
-            preds = self.net.detectAndComputeDense(data['image'])
+            preds = self.model.detectAndComputeDense(data['image'])
         return preds

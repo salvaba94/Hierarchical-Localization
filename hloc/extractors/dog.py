@@ -61,7 +61,7 @@ class DoG(BaseModel):
                 device=getattr(pycolmap.Device, "cuda" if use_gpu else "cpu"),
             )
 
-        keypoints, descriptors = self.sift.extract(image_np)
+        keypoints, scores, descriptors = self.sift.extract(image_np)
         scales = keypoints[:, 2]
         oris = np.rad2deg(keypoints[:, 3])
 

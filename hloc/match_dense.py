@@ -255,17 +255,18 @@ def match_dense(
 
             # match semi-dense
             # for consistency with pairs_from_*: refine kpts of image0
-            if name0 in existing_refs:
-                # special case: flip to enable refinement in query image
-                pred = model({"image0": image1, "image1": image0})
-                pred = {
-                    **pred,
-                    "keypoints0": pred["keypoints1"],
-                    "keypoints1": pred["keypoints0"],
-                }
-            else:
-                # usual case
-                pred = model({"image0": image0, "image1": image1})
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                if name0 in existing_refs:
+                    # special case: flip to enable refinement in query image
+                    pred = model({"image0": image1, "image1": image0})
+                    pred = {
+                        **pred,
+                        "keypoints0": pred["keypoints1"],
+                        "keypoints1": pred["keypoints0"],
+                    }
+                else:
+                    # usual case
+                    pred = model({"image0": image0, "image1": image1})
 
             # Rescale keypoints and move to cpu
             kpts0, kpts1 = pred["keypoints0"], pred["keypoints1"]

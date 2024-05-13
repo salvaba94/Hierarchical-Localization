@@ -19,4 +19,7 @@ class ALIKED(BaseModel):
 
     def _forward(self, data):
         pred = self.model(data)
+        pred["descriptors"] = pred["descriptors"].transpose(-1, -2)
+        pred["scores"] = pred.pop("keypoint_scores")
+
         return pred

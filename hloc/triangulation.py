@@ -45,7 +45,7 @@ def create_db_from_model(
 
     for i, camera in reconstruction.cameras.items():
         db.add_camera(
-            camera.model.value,
+            camera.model_id,
             camera.width,
             camera.height,
             camera.params,
@@ -61,13 +61,11 @@ def create_db_from_model(
     return {image.name: i for i, image in reconstruction.images.items()}
 
 
-def import_features(
-    image_ids: Dict[str, int], database_path: Path, features_path: Path
-):
+def import_features(image_ids: Dict[str, int], database_path: Path, features_path: Path):
     logger.info("Importing features into the database...")
     db = COLMAPDatabase.connect(database_path)
 
-    for image_name, image_id in tqdm(image_ids.items()):
+    for image_name, image_id in tqdm(image_ids.items(), ncols=80):
         keypoints = get_keypoints(features_path, image_name)
         keypoints += 0.5  # COLMAP origin
         db.add_keypoints(image_id, keypoints)
@@ -92,7 +90,10 @@ def import_matches(
     db = COLMAPDatabase.connect(database_path)
 
     matched = set()
-    for name0, name1 in tqdm(pairs):
+    for name0, name1 in tqdm(pairs, ncols=80):
+        if name0 not in image_ids or name1 not in image_ids:
+            continue
+
         id0, id1 = image_ids[name0], image_ids[name1]
         if len({(id0, id1), (id1, id0)} & matched) > 0:
             continue
@@ -116,9 +117,7 @@ def estimation_and_geometric_verification(
     with OutputCapture(verbose):
         with pycolmap.ostream():
             pycolmap.verify_matches(
-                database_path,
-                pairs_path,
-                options=dict(ransac=dict(max_num_trials=20000, min_inlier_ratio=0.1)),
+                database_path, pairs_path, max_num_trials=20000, min_inlier_ratio=0.1
             )
 
 
@@ -140,48 +139,68 @@ def geometric_verification(
     matched = set()
     for name0 in tqdm(pairs):
         id0 = image_ids[name0]
-        image0 = reference.images[id0]
+        ref_id0 = reference.find_image_with_name(name0).image_id
+        # id0 = np.where(np.array([im.name for im in reference.images.values()]) == name0)[0][0]
+        image0 = reference.images[ref_id0]
         cam0 = reference.cameras[image0.camera_id]
         kps0, noise0 = get_keypoints(features_path, name0, return_uncertainty=True)
         noise0 = 1.0 if noise0 is None else noise0
         if len(kps0) > 0:
-            kps0 = np.stack(cam0.cam_from_img(kps0))
+            kps0 = np.stack(cam0.image_to_world(kps0))
         else:
             kps0 = np.zeros((0, 2))
 
         for name1 in pairs[name0]:
             id1 = image_ids[name1]
-            image1 = reference.images[id1]
+            ref_id1 = reference.find_image_with_name(name1).image_id
+
+            # get id of name1
+            # id1 = np.where(np.array([im.name for im in reference.images.values()]) == name1)[0][0]
+            # print(f"names: {name0} -> {name1}")
+            # print(f"ids:   {id0} -> {id1}")
+
+            image1 = reference.images[ref_id1]
             cam1 = reference.cameras[image1.camera_id]
             kps1, noise1 = get_keypoints(features_path, name1, return_uncertainty=True)
             noise1 = 1.0 if noise1 is None else noise1
             if len(kps1) > 0:
-                kps1 = np.stack(cam1.cam_from_img(kps1))
+                kps1 = np.stack(cam1.image_to_world(kps1))
             else:
                 kps1 = np.zeros((0, 2))
 
             matches = get_matches(matches_path, name0, name1)[0]
 
-            if len({(id0, id1), (id1, id0)} & matched) > 0:
+            # print(f"Number of matches: {matches.shape[0]}")
+
+            if len({(ref_id0, ref_id1), (ref_id1, ref_id0)} & matched) > 0:
+                # print("Already matched.")
+                # print()
                 continue
-            matched |= {(id0, id1), (id1, id0)}
+            matched |= {(ref_id0, ref_id1), (ref_id1, ref_id0)}
 
             if matches.shape[0] == 0:
                 db.add_two_view_geometry(id0, id1, matches)
+                # print("No matches.")
+                # print()
                 continue
 
-            cam1_from_cam0 = image1.cam_from_world * image0.cam_from_world.inverse()
-            errors0, errors1 = compute_epipolar_errors(
-                cam1_from_cam0, kps0[matches[:, 0]], kps1[matches[:, 1]]
+            qvec_01, tvec_01 = pycolmap.relative_pose(
+                image0.qvec, image0.tvec, image1.qvec, image1.tvec
+            )
+            _, errors0, errors1 = compute_epipolar_errors(
+                qvec_01, tvec_01, kps0[matches[:, 0]], kps1[matches[:, 1]]
             )
             valid_matches = np.logical_and(
-                errors0 <= cam0.cam_from_img_threshold(noise0 * max_error),
-                errors1 <= cam1.cam_from_img_threshold(noise1 * max_error),
+                errors0 <= max_error * noise0 / cam0.mean_focal_length(),
+                errors1 <= max_error * noise1 / cam1.mean_focal_length(),
             )
+
+            # print(f"Number of valid matches: {len(valid_matches)}")
             # TODO: We could also add E to the database, but we need
             # to reverse the transformations if id0 > id1 in utils/database.py.
             db.add_two_view_geometry(id0, id1, matches[valid_matches, :])
             inlier_ratios.append(np.mean(valid_matches))
+            # print()
     logger.info(
         "mean/med/min/max valid matches %.2f/%.2f/%.2f/%.2f%%.",
         np.mean(inlier_ratios) * 100,
@@ -239,26 +258,17 @@ def main(
     image_ids = create_db_from_model(reference, database)
     import_features(image_ids, database, features)
     import_matches(
-        image_ids,
-        database,
-        pairs,
-        matches,
-        min_match_score,
-        skip_geometric_verification,
+        image_ids, database, pairs, matches, min_match_score, skip_geometric_verification
     )
     if not skip_geometric_verification:
         if estimate_two_view_geometries:
             estimation_and_geometric_verification(database, pairs, verbose)
         else:
-            geometric_verification(
-                image_ids, reference, database, features, pairs, matches
-            )
+            geometric_verification(image_ids, reference, database, features, pairs, matches)
     reconstruction = run_triangulation(
         sfm_dir, database, image_dir, reference, verbose, mapper_options
     )
-    logger.info(
-        "Finished the triangulation with statistics:\n%s", reconstruction.summary()
-    )
+    logger.info("Finished the triangulation with statistics:\n%s", reconstruction.summary())
     return reconstruction
 
 

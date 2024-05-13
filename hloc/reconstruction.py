@@ -43,8 +43,8 @@ def import_images(
         raise IOError(f"No images found in {image_dir}.")
     with pycolmap.ostream():
         pycolmap.import_images(
-            database_path,
-            image_dir,
+            str(database_path),
+            str(image_dir),
             camera_mode,
             image_list=image_list or [],
             options=options,
@@ -76,7 +76,7 @@ def run_reconstruction(
     with OutputCapture(verbose):
         with pycolmap.ostream():
             reconstructions = pycolmap.incremental_mapping(
-                database_path, image_dir, models_path, options=options
+                str(database_path), str(image_dir), str(models_path), options=pycolmap.IncrementalMapperOptions(**options)
             )
 
     if len(reconstructions) == 0:
