@@ -5,8 +5,7 @@ import torch
 
 from ..utils.base_model import BaseModel
 
-sys.path.append(str(Path(__file__).parent / "../../third_party"))
-from SuperGluePretrainedNetwork.models import superpoint  # noqa E402
+import lightglue.superpoint as superpoint 
 
 
 # The original keypoint sampling is incorrect. We patch it here but
@@ -39,7 +38,10 @@ class SuperPoint(BaseModel):
     def _init(self, conf):
         if conf["fix_sampling"]:
             superpoint.sample_descriptors = sample_descriptors_fix_sampling
-        self.net = superpoint.SuperPoint(conf)
+        self.net = superpoint.SuperPoint(**conf)
 
     def _forward(self, data):
-        return self.net(data)
+        preds = self.net(data)
+        preds["descriptors"] = preds["descriptors"].transpose(-1, -2)
+        preds["scores"] = preds.pop("keypoint_scores")
+        return preds

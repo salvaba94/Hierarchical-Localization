@@ -32,4 +32,4 @@ class LightGlue(BaseModel):
                 "image1": {k[:-1]: v for k, v in data.items() if k[-1] == "1"},
             }
         )
-        return 
+        return results

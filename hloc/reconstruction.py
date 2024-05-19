@@ -71,12 +71,13 @@ def run_reconstruction(
     models_path.mkdir(exist_ok=True, parents=True)
     logger.info("Running 3D reconstruction...")
     if options is None:
-        options = {}
-    options = {"num_threads": min(multiprocessing.cpu_count(), 16), **options}
+        options = pycolmap.IncrementalMapperOptions()
+    options.num_threads = min(multiprocessing.cpu_count(), 1)
+
     with OutputCapture(verbose):
         with pycolmap.ostream():
             reconstructions = pycolmap.incremental_mapping(
-                str(database_path), str(image_dir), str(models_path), options=pycolmap.IncrementalMapperOptions(**options)
+                str(database_path), str(image_dir), str(models_path), options=options
             )
 
     if len(reconstructions) == 0:
