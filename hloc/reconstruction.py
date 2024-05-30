@@ -74,6 +74,7 @@ def run_reconstruction(
         options = pycolmap.IncrementalMapperOptions()
     options.num_threads = min(multiprocessing.cpu_count(), 1)
 
+    #pycolmap.match_exhaustive(str(database_path), sift_options={'num_threads': 1})
     with OutputCapture(verbose):
         with pycolmap.ostream():
             reconstructions = pycolmap.incremental_mapping(

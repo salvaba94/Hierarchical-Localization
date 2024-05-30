@@ -129,6 +129,14 @@ confs = {
             # "resize_force": True,
         },
     },
+    "xfeat": {
+        "output": "feats-xfeat",
+        "model": {
+            "name": "xfeat",
+            "top_k": 4096
+        },
+        "preprocessing": { "grayscale": False, "resize_max": 1600 },
+    },
     # Global descriptors
     "dir": {
         "output": "global-feats-dir",

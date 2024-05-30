@@ -26,4 +26,5 @@ class XFeat(BaseModel):
     def _forward(self, data):
         self.model.parse_input(data["image"])
         preds = self.model.detectAndComputeDense(data['image'])
+        preds["scores"] = torch.zeros_like(preds["scales"]) # No scores at the moment
         return preds
